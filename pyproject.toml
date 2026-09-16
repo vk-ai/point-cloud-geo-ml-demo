@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "point-cloud-geo-ml-demo"
+version = "0.1.0"
+description = "OSS learning: CPU-friendly point-cloud / geometric ML fundamentals (FPS, PCA normals, voxel features, tiny classifier)."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "vk-ai" }]
+keywords = [
+  "point-cloud",
+  "geometric-ml",
+  "fps",
+  "normals",
+  "voxelization",
+  "numpy",
+  "sklearn",
+  "learning",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scikit-learn>=1.3",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+point-cloud-geo = "point_cloud_geo.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/vk-ai/point-cloud-geo-ml-demo"
+Issues = "https://github.com/vk-ai/point-cloud-geo-ml-demo/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/point_cloud_geo"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/point_cloud_geo" = "point_cloud_geo"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
