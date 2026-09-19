@@ -22,7 +22,7 @@ This repo is that slice.
 |---|---|
 | `src/point_cloud_geo/data.py` | Synthetic plane / sphere / cube clouds (labeled) |
 | `src/point_cloud_geo/sampling.py` | Farthest Point Sampling (FPS) |
-| `src/point_cloud_geo/voxelize.py` | Coarse voxel occupancy features |
+| `src/point_cloud_geo/voxelize.py` | Coarse voxel features (`occupancy` / `count` / `max_count_bin`) |
 | `src/point_cloud_geo/features.py` | PCA normals on kNN + linearity/planarity/sphericity |
 | `src/point_cloud_geo/model.py` | Tiny sklearn MLP or logistic on pooled features |
 | `src/point_cloud_geo/train.py` | Train / test split + accuracy |
@@ -80,7 +80,9 @@ synthetic cloud (N×3)
 
 ## Config
 
-See `configs/default.yaml` for `n_per_class`, `n_points`, `fps_points`, `knn_k`, `voxel_size`, and `classifier: mlp | logistic`.
+See `configs/default.yaml` for `n_per_class`, `n_points`, `fps_points`, `knn_k`, `voxel_size`, `voxel.reduction` (`occupancy` | `count` | `max_count_bin`), and `classifier: mlp | logistic`.
+
+**Voxel reduction modes (teaching knob):** Open3D users often want richer than mean/occupancy reductions ([Open3D#6934](https://github.com/isl-org/Open3D/issues/6934)). This demo stays **numpy-only** (no Open3D): `occupancy` is binary density-normalized, `count` keeps per-bin mass, `max_count_bin` highlights the densest bin. Eval JSON includes `voxel_reduction`.
 
 ## CI
 

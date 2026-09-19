@@ -70,6 +70,7 @@ def cloud_feature_vector(
     fps_points: int = 64,
     knn_k: int = 8,
     voxel_size: float = 0.25,
+    voxel_reduction: str = "occupancy",
     seed: int = 0,
 ) -> np.ndarray:
     """
@@ -102,7 +103,9 @@ def cloud_feature_vector(
     # Roughness proxy: mean smallest eigenvalue
     roughness = float(eigs[:, 0].mean())
 
-    voxel = voxel_occupancy_features(pts, voxel_size=voxel_size)
+    voxel = voxel_occupancy_features(
+        pts, voxel_size=voxel_size, reduction=voxel_reduction
+    )
 
     parts = [
         coord_mean,
@@ -125,6 +128,7 @@ def featurize_dataset(
     fps_points: int = 64,
     knn_k: int = 8,
     voxel_size: float = 0.25,
+    voxel_reduction: str = "occupancy",
     seed: int = 0,
 ) -> np.ndarray:
     """Stack cloud_feature_vector for each cloud → (B, D)."""
@@ -134,6 +138,7 @@ def featurize_dataset(
             fps_points=fps_points,
             knn_k=knn_k,
             voxel_size=voxel_size,
+            voxel_reduction=voxel_reduction,
             seed=seed + i,
         )
         for i, c in enumerate(clouds)

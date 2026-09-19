@@ -14,6 +14,12 @@ def run_pipeline(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """Train/eval and return a serializable summary."""
     cfg = load_config() if cfg is None else dict(cfg)
     result = train_eval(cfg)
+    voxel_cfg = cfg.get("voxel") or {}
+    voxel_reduction = (
+        str(voxel_cfg.get("reduction", "occupancy"))
+        if isinstance(voxel_cfg, dict)
+        else "occupancy"
+    )
     summary = {
         "train_acc": result["train_acc"],
         "test_acc": result["test_acc"],
@@ -25,6 +31,7 @@ def run_pipeline(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         "fps_points": cfg.get("fps_points", 64),
         "knn_k": cfg.get("knn_k", 8),
         "voxel_size": cfg.get("voxel_size", 0.25),
+        "voxel_reduction": voxel_reduction,
         "disclaimer": (
             "OSS/learning demo only — not employer production software."
         ),

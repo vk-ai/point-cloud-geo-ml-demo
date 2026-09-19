@@ -41,3 +41,38 @@ def test_voxel_centroids_nonempty():
     cents = voxel_centroids(pts, voxel_size=0.4)
     assert cents.ndim == 2 and cents.shape[1] == 3
     assert cents.shape[0] >= 1
+
+
+def test_voxel_reduction_modes_differ_on_dense_vs_sparse():
+    """occupancy | count | max_count_bin must disagree on a clumpy synthetic cloud."""
+    from point_cloud_geo.voxelize import VALID_REDUCTIONS, voxel_occupancy_features
+
+    rng = np.random.default_rng(21)
+    # Dense cluster in one corner + sparse outliers → count/max peak diverge from binary occupancy
+    dense = rng.normal(loc=(-0.8, -0.8, -0.8), scale=0.05, size=(80, 3))
+    sparse = rng.normal(loc=(0.9, 0.9, 0.9), scale=0.15, size=(12, 3))
+    pts = np.vstack([dense, sparse])
+
+    feats = {
+        mode: voxel_occupancy_features(pts, voxel_size=0.3, reduction=mode)
+        for mode in VALID_REDUCTIONS
+    }
+    assert feats["occupancy"].shape == feats["count"].shape == feats["max_count_bin"].shape
+    # Binary occupancy spreads mass across occupied bins; max_count_bin concentrates on one bin.
+    assert not np.allclose(feats["occupancy"], feats["max_count_bin"])
+    assert not np.allclose(feats["count"], feats["occupancy"])
+    # max_count_bin should be (near) one-hot after normalization
+    assert int(np.count_nonzero(feats["max_count_bin"])) == 1
+    assert np.isclose(feats["max_count_bin"].sum(), 1.0)
+
+
+def test_voxel_reduction_invalid_raises():
+    from point_cloud_geo.voxelize import voxel_occupancy_features
+
+    pts = np.zeros((4, 3))
+    try:
+        voxel_occupancy_features(pts, reduction="mean")
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised

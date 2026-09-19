@@ -6,6 +6,10 @@ noise: 0.02
 fps_points: 64
 knn_k: 8
 voxel_size: 0.25
+# Voxel histogram reduction (Open3D-inspired teaching knob — numpy only, no Open3D).
+# occupancy | count | max_count_bin
+voxel:
+  reduction: occupancy
 test_size: 0.25
 classifier: mlp   # mlp | logistic
 mlp_hidden: [32, 16]
