@@ -16,6 +16,10 @@ _DEFAULTS: dict[str, Any] = {
     "knn_k": 8,
     "voxel_size": 0.25,
     "voxel": {"reduction": "occupancy"},  # occupancy | count | max_count_bin
+    # Fixed-N downsample: fps (PointNet-family default) | random baseline
+    "sampling": "fps",
+    # Open3D-inspired FPS start index (numpy only — no Open3D).
+    "fps": {"start_index": 0},
     "test_size": 0.25,
     "classifier": "mlp",  # "mlp" | "logistic"
     "mlp_hidden": [32, 16],
@@ -27,6 +31,8 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     cfg = dict(_DEFAULTS)
     if isinstance(cfg.get("voxel"), dict):
         cfg["voxel"] = dict(cfg["voxel"])
+    if isinstance(cfg.get("fps"), dict):
+        cfg["fps"] = dict(cfg["fps"])
     if path is None:
         candidate = Path(__file__).resolve().parents[2] / "configs" / "default.yaml"
         path = candidate if candidate.is_file() else None
@@ -35,8 +41,8 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
             loaded = yaml.safe_load(f) or {}
         if not isinstance(loaded, dict):
             raise ValueError(f"Config at {path} must be a mapping")
-        # Shallow update, then deep-merge known nested maps (e.g. voxel.reduction).
-        nested_keys = ("voxel",)
+        # Shallow update, then deep-merge known nested maps.
+        nested_keys = ("voxel", "fps")
         nested_loaded = {k: loaded.pop(k) for k in list(loaded) if k in nested_keys}
         cfg.update(loaded)
         for key, val in nested_loaded.items():
