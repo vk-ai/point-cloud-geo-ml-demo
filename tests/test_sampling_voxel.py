@@ -76,3 +76,56 @@ def test_voxel_reduction_invalid_raises():
     except ValueError:
         raised = True
     assert raised
+
+
+def test_random_sampling_count_and_subset():
+    from point_cloud_geo.sampling import random_downsample, random_point_sampling
+
+    rng = np.random.default_rng(3)
+    pts = sample_cloud("sphere", n_points=100, rng=rng)
+    idx = random_point_sampling(pts, 20, seed=0)
+    assert idx.shape == (20,)
+    assert len(set(idx.tolist())) == 20
+    sub = random_downsample(pts, 20, seed=0)
+    assert sub.shape == (20, 3)
+
+
+def test_fps_start_index_deterministic():
+    from point_cloud_geo.sampling import farthest_point_sampling
+
+    pts = np.random.default_rng(0).normal(size=(30, 3))
+    a = farthest_point_sampling(pts, 10, seed=0, start_index=0)
+    b = farthest_point_sampling(pts, 10, seed=99, start_index=0)
+    assert a[0] == 0 and b[0] == 0
+    assert np.array_equal(a, b)
+
+
+def test_fps_coverage_ge_random_on_fixed_cloud():
+    """FPS should spread at least as well as random on a fixed synthetic cloud."""
+    from point_cloud_geo.sampling import coverage_mean_nn_spacing, downsample
+
+    rng = np.random.default_rng(21)
+    # Elongated cloud where clumping hurts coverage
+    pts = rng.uniform(low=[-2, -0.5, -0.5], high=[2, 0.5, 0.5], size=(200, 3))
+    n_keep = 32
+    fps_pts = downsample(pts, n_keep, method="fps", seed=0, start_index=0)
+    rnd_pts = downsample(pts, n_keep, method="random", seed=0)
+    fps_cov = coverage_mean_nn_spacing(fps_pts)
+    rnd_cov = coverage_mean_nn_spacing(rnd_pts)
+    assert fps_cov >= rnd_cov - 1e-9
+
+
+def test_sampling_compare_eval_table():
+    from point_cloud_geo.config import load_config
+    from point_cloud_geo.eval import compare_sampling
+
+    cfg = load_config()
+    cfg["n_per_class"] = 12  # keep test fast
+    cfg["max_iter"] = 200
+    out = compare_sampling(cfg)
+    rows = out["sampling_compare"]
+    assert [r["sampling"] for r in rows] == ["fps", "random"]
+    for r in rows:
+        assert 0.0 <= r["test_acc"] <= 1.0
+        assert r["coverage_mean_nn_spacing"] >= 0.0
+        assert 0.0 <= r["coverage_bbox_fill_ratio"] <= 1.0

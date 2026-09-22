@@ -21,7 +21,7 @@ This repo is that slice.
 | Piece | Role |
 |---|---|
 | `src/point_cloud_geo/data.py` | Synthetic plane / sphere / cube clouds (labeled) |
-| `src/point_cloud_geo/sampling.py` | Farthest Point Sampling (FPS) |
+| `src/point_cloud_geo/sampling.py` | Farthest Point Sampling (FPS) + random baseline + coverage proxies |
 | `src/point_cloud_geo/voxelize.py` | Coarse voxel features (`occupancy` / `count` / `max_count_bin`) |
 | `src/point_cloud_geo/features.py` | PCA normals on kNN + linearity/planarity/sphericity |
 | `src/point_cloud_geo/model.py` | Tiny sklearn MLP or logistic on pooled features |
@@ -80,9 +80,11 @@ synthetic cloud (N×3)
 
 ## Config
 
-See `configs/default.yaml` for `n_per_class`, `n_points`, `fps_points`, `knn_k`, `voxel_size`, `voxel.reduction` (`occupancy` | `count` | `max_count_bin`), and `classifier: mlp | logistic`.
+See `configs/default.yaml` for `n_per_class`, `n_points`, `fps_points`, `knn_k`, `voxel_size`, `voxel.reduction` (`occupancy` | `count` | `max_count_bin`), `sampling: fps | random`, `fps.start_index`, and `classifier: mlp | logistic`.
 
 **Voxel reduction modes (teaching knob):** Open3D users often want richer than mean/occupancy reductions ([Open3D#6934](https://github.com/isl-org/Open3D/issues/6934)). This demo stays **numpy-only** (no Open3D): `occupancy` is binary density-normalized, `count` keeps per-bin mass, `max_count_bin` highlights the densest bin. Eval JSON includes `voxel_reduction`.
+
+**FPS vs random (teaching ablation):** PointNet-family pipelines default to FPS for fixed-N tokens; learners need a cheap proof it beats uniform random on **coverage** (and when accuracy may not move). Set `sampling: fps | random` at the same `fps_points`; eval JSON includes a `sampling_compare` table with `test_acc`, `coverage_mean_nn_spacing`, and `coverage_bbox_fill_ratio`. `fps.start_index` (default `0`) mirrors Open3D’s start-index idea ([Open3D#7076](https://github.com/isl-org/Open3D/pull/7076)) — **numpy only**, not Open3D/PointNet/ScanNet numbers.
 
 ## CI
 

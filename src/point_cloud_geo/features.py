@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from point_cloud_geo.sampling import fps_downsample
+from point_cloud_geo.sampling import downsample
 from point_cloud_geo.voxelize import voxel_occupancy_features
 
 
@@ -71,18 +71,26 @@ def cloud_feature_vector(
     knn_k: int = 8,
     voxel_size: float = 0.25,
     voxel_reduction: str = "occupancy",
+    sampling: str = "fps",
+    fps_start_index: int | None = 0,
     seed: int = 0,
 ) -> np.ndarray:
     """
     Aggregate a single cloud into a fixed feature vector for classification.
 
     Pipeline (geometric ML fundamentals):
-      1. FPS downsample to fixed size
+      1. Downsample to fixed size (FPS or random baseline)
       2. PCA normals + eigenvalue shape ratios on neighborhoods
       3. Global stats of coords / normals / ratios
       4. Coarse voxel occupancy histogram
     """
-    pts = fps_downsample(points, fps_points, seed=seed)
+    pts = downsample(
+        points,
+        fps_points,
+        method=sampling,
+        seed=seed,
+        start_index=fps_start_index,
+    )
     normals, eigs = estimate_normals_pca(pts, k=knn_k)
     ratios = local_shape_ratios(eigs)
 
@@ -129,6 +137,8 @@ def featurize_dataset(
     knn_k: int = 8,
     voxel_size: float = 0.25,
     voxel_reduction: str = "occupancy",
+    sampling: str = "fps",
+    fps_start_index: int | None = 0,
     seed: int = 0,
 ) -> np.ndarray:
     """Stack cloud_feature_vector for each cloud → (B, D)."""
@@ -139,6 +149,8 @@ def featurize_dataset(
             knn_k=knn_k,
             voxel_size=voxel_size,
             voxel_reduction=voxel_reduction,
+            sampling=sampling,
+            fps_start_index=fps_start_index,
             seed=seed + i,
         )
         for i, c in enumerate(clouds)

@@ -36,12 +36,18 @@ def train_eval(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         if isinstance(voxel_cfg, dict)
         else "occupancy"
     )
+    fps_cfg = cfg.get("fps") or {}
+    fps_start = fps_cfg.get("start_index", 0) if isinstance(fps_cfg, dict) else 0
+    if fps_start is not None:
+        fps_start = int(fps_start)
     x = featurize_dataset(
         clouds,
         fps_points=int(cfg.get("fps_points", 64)),
         knn_k=int(cfg.get("knn_k", 8)),
         voxel_size=float(cfg.get("voxel_size", 0.25)),
         voxel_reduction=voxel_reduction,
+        sampling=str(cfg.get("sampling", "fps")),
+        fps_start_index=fps_start,
         seed=seed,
     )
 
