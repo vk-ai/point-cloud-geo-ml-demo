@@ -24,6 +24,8 @@ This repo is that slice.
 | `src/point_cloud_geo/sampling.py` | Farthest Point Sampling (FPS) + random baseline + coverage proxies |
 | `src/point_cloud_geo/voxelize.py` | Coarse voxel features (`occupancy` / `count` / `max_count_bin`) |
 | `src/point_cloud_geo/features.py` | PCA normals on kNN + linearity/planarity/sphericity |
+| `src/point_cloud_geo/normals_radius.py` | Radius-neighborhood PCA normals (BallTree; Open3D-free) |
+| `src/point_cloud_geo/pointnet_lite.py` | PointNet-lite: shared MLP + max-pool (± normals ablation) |
 | `src/point_cloud_geo/model.py` | Tiny sklearn MLP or logistic on pooled features |
 | `src/point_cloud_geo/train.py` | Train / test split + accuracy |
 | `src/point_cloud_geo/eval.py` | JSON-friendly eval summary |
@@ -66,6 +68,22 @@ Point-cloud geometric ML demo (OSS / learning only)
 4. **Tiny classifier** — concatenate global stats of coords / normals / shape ratios + voxel occupancy, then train a small **MLP** (or logistic regression). This is the “handcrafted geometric features + shallow net” cousin of PointNet’s learned per-point MLP + max-pool idea.
 
 All of the above run on CPU in seconds with a few dozen synthetic clouds.
+
+
+## Radius normals + PointNet-lite (round 3)
+
+**Radius PCA normals:** for each point, neighbors within radius `r` → PCA → smallest eigenvector. Config: `normals.radius`, `normals.min_nn`. *r* must match your cloud’s metric spacing (too-small → noisy; too-large → oversmoothed) — same lesson Open3D users hit  
+([PCL normal estimation](https://pcl.readthedocs.io/projects/tutorials/en/master/normal_estimation.html)).
+
+**PointNet-lite:** shared per-point MLP → symmetric max-pool → class MLP on FPS-downsampled clouds (XYZ or XYZ+normals). Teachable stub — **not** PointNet++/LitePT  
+([PointNetLite 2025](https://doi.org/10.1117/12.3063179) as motivation only).
+
+```python
+from point_cloud_geo import estimate_normals_radius, compare_normals_ablation, make_dataset
+clouds, labels = make_dataset(n_per_class=20, n_points=64, seed=0)
+n, e, c = estimate_normals_radius(clouds[0], radius=0.35)
+print(compare_normals_ablation(clouds, labels, n_points=32, epochs=25))
+```
 
 ## Pipeline
 

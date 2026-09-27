@@ -17,6 +17,8 @@ from point_cloud_geo.sampling import (
     downsample,
 )
 from point_cloud_geo.train import train_eval
+from point_cloud_geo.data import make_dataset
+from point_cloud_geo.pointnet_lite import compare_normals_ablation
 
 
 def _fps_start(cfg: dict[str, Any]) -> int | None:
@@ -80,6 +82,31 @@ def run_pipeline(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
             "OSS/learning demo only — not employer production software."
         ),
     }
+    pn_cfg = cfg.get("pointnet_lite") or {}
+    if pn_cfg.get("enabled", False):
+        clouds, labels = make_dataset(
+            n_per_class=int(cfg.get("n_per_class", 40)),
+            n_points=int(cfg.get("n_points", 128)),
+            noise=float(cfg.get("noise", 0.02)),
+            seed=int(cfg.get("seed", 7)),
+        )
+        normals_cfg = cfg.get("normals") or {}
+        radius = float(normals_cfg.get("radius", 0.35))
+        kwargs = dict(
+            n_points=int(pn_cfg.get("n_points", 48)),
+            radius=radius,
+            hidden=int(pn_cfg.get("hidden", 24)),
+            epochs=int(pn_cfg.get("epochs", 30)),
+            lr=float(pn_cfg.get("lr", 0.08)),
+            seed=int(cfg.get("seed", 7)),
+            n_classes=len(summary["classes"]),
+        )
+        if pn_cfg.get("compare_normals", True):
+            summary["pointnet_lite"] = compare_normals_ablation(clouds, labels, **kwargs)
+        else:
+            from point_cloud_geo.pointnet_lite import run_pointnet_lite_demo
+            out = run_pointnet_lite_demo(clouds, labels, mode="xyz", **kwargs)
+            summary["pointnet_lite"] = {k: v for k, v in out.items() if k != "model"}
     return summary
 
 
