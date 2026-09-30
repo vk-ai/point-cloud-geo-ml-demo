@@ -26,6 +26,7 @@ This repo is that slice.
 | `src/point_cloud_geo/features.py` | PCA normals on kNN + linearity/planarity/sphericity |
 | `src/point_cloud_geo/normals_radius.py` | Radius-neighborhood PCA normals (BallTree; Open3D-free) |
 | `src/point_cloud_geo/pointnet_lite.py` | PointNet-lite: shared MLP + max-pool (± normals ablation) |
+| `src/point_cloud_geo/registration.py` | Numpy ICP: point-to-point (Kabsch) + point-to-plane (radius normals), `fitness` / `inlier_rmse` / `converged` (round 4) |
 | `src/point_cloud_geo/model.py` | Tiny sklearn MLP or logistic on pooled features |
 | `src/point_cloud_geo/train.py` | Train / test split + accuracy |
 | `src/point_cloud_geo/eval.py` | JSON-friendly eval summary |
@@ -84,6 +85,51 @@ clouds, labels = make_dataset(n_per_class=20, n_points=64, seed=0)
 n, e, c = estimate_normals_radius(clouds[0], radius=0.35)
 print(compare_normals_ablation(clouds, labels, n_points=32, epochs=25))
 ```
+
+## ICP registration (round 4)
+
+`icp(source, target, method=...)` estimates the rigid 4×4 `T` with `target ≈ R·source + t`. It is written in numpy, with correspondences from sklearn `NearestNeighbors` (already a dependency).
+
+- **`point_to_point`**: a closed-form Kabsch/SVD update on the inlier pairs.
+- **`point_to_plane`** (optional): a linearized 6×6 least-squares step on `Σ((R p + t − q)·n)²`. It uses **target normals from the shipped radius-PCA estimator** (`normals_radius`, or pass `target_normals=`), and ω is mapped back to an exact rotation.
+
+```python
+from point_cloud_geo.registration import icp, make_registration_pair, transform_errors
+src, tgt, T_true = make_registration_pair("cube", angle_deg=20.0, noise=0.01, seed=7)
+res = icp(src, tgt, method="point_to_plane", max_corr_dist=0.25, max_iter=50)
+res.fitness, res.inlier_rmse, res.converged, res.n_iter, res.stop_reason
+transform_errors(res.T, T_true)   # {'rotation_error_deg': ..., 'translation_error': ...}
+```
+
+**Output definitions.** These are explicit because Open3D users found the upstream docs confusing: the fitness docs were wrong ([Open3D#7503](https://github.com/isl-org/Open3D/issues/7503)), `converged_` was always false ([#7296](https://github.com/isl-org/Open3D/issues/7296)), and the stop criteria were ignored ([#7367](https://github.com/isl-org/Open3D/issues/7367)).
+
+| Output | Definition |
+|---|---|
+| `fitness` | `n_inliers / len(source)`: the fraction of **source** points whose nearest target point (after `T`) lies within `max_corr_dist`. Range 0…1. |
+| `inlier_rmse` | `sqrt(mean(d²))` over **inlier** pairs only, with `d` the Euclidean point-to-point distance (for both methods). It is `nan` when there are no inliers. |
+| `converged` | True only if a stopping test fired **before** `max_iter`: either a tiny update (`tol_rotation_deg` and `tol_translation`) or |Δfitness| < `tol_fitness` **and** |Δrmse| < `tol_rmse`. `stop_reason` says which. Hitting `max_iter` means `False`. |
+
+Both metrics are recomputed at the **returned** `T` (`evaluate_registration` uses the same formula). **Neither one proves the transform is correct.**
+
+`python evals/runner.py` now prints an `icp_recovery` block (cube, seed 7):
+
+```text
+small  20.0°  point_to_point  rot_err=  0.051°  t_err=0.0014  fitness=1.000  inlier_rmse=0.0169  iters=15  converged=True
+small  20.0°  point_to_plane  rot_err=  0.235°  t_err=0.0031  fitness=1.000  inlier_rmse=0.0176  iters= 6  converged=True
+large  90.0°  point_to_point  rot_err= 90.458°  t_err=0.0465  fitness=1.000  inlier_rmse=0.0826  iters=32  converged=True
+large  90.0°  point_to_plane  rot_err= 89.636°  t_err=0.0453  fitness=1.000  inlier_rmse=0.0841  iters=50  converged=False
+```
+
+Lessons the tests pin down:
+
+1. With small angles, both methods recover the known transform (< 1°). Point-to-plane needs far fewer iterations.
+2. With large angles, ICP is **local**. At 90°, the cube's symmetry gives a wrong pose with fitness 1.0. Only the 5× higher `inlier_rmse` hints at the problem.
+3. A **sphere**'s rotation is unobservable: fitness is 1.0 and the rotation is still wrong.
+4. On a flat **plane**, point-to-plane cannot see in-plane sliding. Near-degenerate directions are truncated (`plane_rcond`) so it does not diverge, but it slides.
+5. Junk source points lower `fitness` without inflating `inlier_rmse`.
+6. Results are deterministic for a fixed seed.
+
+**Honesty:** this is a teaching ICP. It has no global registration (FPFH/RANSAC), no robust kernels, no multi-scale schedule, and is not Open3D or PCL. The synthetic rigid transforms are not real LiDAR scans. Background: [LearnOpenCV ICP](https://learnopencv.com/iterative-closest-point-icp-explained/) · [SO: point-to-plane ICP](https://stackoverflow.com/questions/69490955/how-to-implement-icp-with-point-to-plane-distance) · [Open3D#6110 point-to-plane diverging](https://github.com/isl-org/Open3D/issues/6110).
 
 ## Pipeline
 

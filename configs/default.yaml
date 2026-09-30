@@ -30,3 +30,14 @@ pointnet_lite:
   epochs: 30
   lr: 0.08
   compare_normals: true
+# ICP registration demo (round 4): recover a known rigid transform on a synthetic
+# cube (numpy + sklearn NearestNeighbors). large_angle_deg shows a local minimum.
+registration:
+  shape: cube
+  angle_deg: 20.0
+  large_angle_deg: 90.0
+  max_translation: 0.2
+  noise: 0.01
+  max_corr_dist: 0.25
+  max_iter: 50
+  normals_radius: 0.35
