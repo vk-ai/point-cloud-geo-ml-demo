@@ -27,6 +27,7 @@ This repo is that slice.
 | `src/point_cloud_geo/normals_radius.py` | Radius-neighborhood PCA normals (BallTree; Open3D-free) |
 | `src/point_cloud_geo/pointnet_lite.py` | PointNet-lite: shared MLP + max-pool (± normals ablation) |
 | `src/point_cloud_geo/registration.py` | Numpy ICP: point-to-point (Kabsch) + point-to-plane (radius normals), `fitness` / `inlier_rmse` / `converged` (round 4) |
+| `src/point_cloud_geo/segmentation.py` | Seeded RANSAC plane segmentation (`segment_plane` / `segment_planes`), bit-identical per seed (round 5) |
 | `src/point_cloud_geo/model.py` | Tiny sklearn MLP or logistic on pooled features |
 | `src/point_cloud_geo/train.py` | Train / test split + accuracy |
 | `src/point_cloud_geo/eval.py` | JSON-friendly eval summary |
@@ -129,7 +130,42 @@ Lessons the tests pin down:
 5. Junk source points lower `fitness` without inflating `inlier_rmse`.
 6. Results are deterministic for a fixed seed.
 
-**Honesty:** this is a teaching ICP. It has no global registration (FPFH/RANSAC), no robust kernels, no multi-scale schedule, and is not Open3D or PCL. The synthetic rigid transforms are not real LiDAR scans. Background: [LearnOpenCV ICP](https://learnopencv.com/iterative-closest-point-icp-explained/) · [SO: point-to-plane ICP](https://stackoverflow.com/questions/69490955/how-to-implement-icp-with-point-to-plane-distance) · [Open3D#6110 point-to-plane diverging](https://github.com/isl-org/Open3D/issues/6110).
+**Honesty:** this is a teaching ICP. It has no global registration (no FPFH features or RANSAC correspondence matching; the round-5 RANSAC below segments planes and is not used to register), no robust kernels, no multi-scale schedule, and is not Open3D or PCL. The synthetic rigid transforms are not real LiDAR scans. Background: [LearnOpenCV ICP](https://learnopencv.com/iterative-closest-point-icp-explained/) · [SO: point-to-plane ICP](https://stackoverflow.com/questions/69490955/how-to-implement-icp-with-point-to-plane-distance) · [Open3D#6110 point-to-plane diverging](https://github.com/isl-org/Open3D/issues/6110).
+
+## Seeded RANSAC plane segmentation (round 5)
+
+`segment_plane(points, distance_threshold, ransac_n=3, num_iterations, seed)` returns the plane model `(a, b, c, d)` (`a·x + b·y + c·z + d = 0`, unit normal) plus the inlier indices. The names and shape follow Open3D's `segment_plane`, and the result unpacks the same way. It is **bit-identical for a given seed**. That property was the long-running upstream pain point: seeds stopped working in 0.16 ([Open3D#5647](https://github.com/isl-org/Open3D/issues/5647)), it took [PR #6308](https://github.com/isl-org/Open3D/pull/6308) and [PR #6580](https://github.com/isl-org/Open3D/pull/6580) to make it deterministic again, and results still looked random in 2025 ([Open3D#7270](https://github.com/isl-org/Open3D/issues/7270)).
+
+```python
+from point_cloud_geo.segmentation import make_plane_scene, segment_plane, segment_planes
+pts, labels, truth = make_plane_scene([(0, 0, 1, -0.1)], n_per_plane=400, n_outliers=200, noise=0.005)
+plane, inliers = segment_plane(pts, distance_threshold=0.02, num_iterations=1000, seed=0)
+res = segment_plane(pts, 0.02, seed=0)       # PlaneResult: .plane_model .inliers .fitness .inlier_rmse .n_iter
+planes = segment_planes(pts, max_planes=3, min_inliers=50, distance_threshold=0.02, seed=0)  # fit → remove → repeat
+```
+
+How determinism is kept:
+- A private `np.random.default_rng(seed)` is used, never the global RNG.
+- Minimal samples are drawn sequentially in a single thread.
+- The best model is chosen by a total order: most inliers, then lowest inlier RMSE, then earliest iteration.
+- Adaptive early stopping (`probability`, as in Open3D; 1.0 disables it) depends only on that sequence.
+- The plane sign is canonical: the largest normal component is positive.
+- A least-squares (SVD) refit on the inliers runs at the end, and it is only kept if it does not lose support.
+
+The tests check the same seed in two processes with different `PYTHONHASHSEED`, and check that the global NumPy RNG is never touched.
+
+`python evals/runner.py` adds a scene with a ground plane, a tilted wall, and 150 uniform outliers (seed 7):
+
+```text
+RANSAC planes (900 pts incl. 150 outliers, thresh=0.02, seed=7):
+  plane 0  abcd=(-0.001,-0.003,+1.000,+0.004)  angle_err=0.181°  d_err=0.0044  inliers=511  precision=0.978  recall=1.000  iters=92
+  plane 1  abcd=(+0.959,-0.001,+0.282,-0.767)  angle_err=0.335°  d_err=0.0004  inliers=249  precision=0.972  recall=0.968  iters=61
+  same seed → identical: True  inliers by seed [511, 513, 512, 512, 513]
+```
+
+Different seeds may choose a slightly different inlier set (RANSAC is still random across seeds). The same seed never does. Outliers that happen to lie within the threshold of a plane count as inliers, which is why precision is not 1.0. Points near the floor–wall intersection go to whichever plane is extracted first. Config: `plane_segmentation` in `configs/default.yaml`.
+
+**Honesty:** this is teaching RANSAC. It is O(iterations·N) in numpy, has no normal-consistency or connectivity checks, and is not Open3D or PCL. The scenes are synthetic, not LiDAR.
 
 ## Pipeline
 

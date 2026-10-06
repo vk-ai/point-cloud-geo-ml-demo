@@ -8,6 +8,7 @@ from point_cloud_geo.eval import run_pipeline
 from point_cloud_geo.normals_radius import estimate_normals_radius
 from point_cloud_geo.registration import ICPResult, icp, icp_recovery
 from point_cloud_geo.pointnet_lite import PointNetLite, compare_normals_ablation
+from point_cloud_geo.segmentation import PlaneResult, segment_plane, segment_planes
 from point_cloud_geo.train import train_eval
 
 __all__ = [
@@ -23,4 +24,7 @@ __all__ = [
     "icp",
     "icp_recovery",
     "ICPResult",
+    "segment_plane",
+    "segment_planes",
+    "PlaneResult",
 ]
