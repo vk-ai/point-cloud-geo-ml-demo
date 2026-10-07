@@ -41,3 +41,12 @@ registration:
   max_corr_dist: 0.25
   max_iter: 50
   normals_radius: 0.35
+# Seeded RANSAC plane segmentation (round 5): synthetic ground + tilted wall +
+# uniform outliers. Same seed → bit-identical plane + inliers.
+plane_segmentation:
+  distance_threshold: 0.02
+  num_iterations: 1000
+  n_ground: 500
+  n_wall: 250
+  n_outliers: 150
+  noise: 0.005
